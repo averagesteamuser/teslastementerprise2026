@@ -1,3 +1,5 @@
+import uuid
+from datetime import datetime, timezone
 from concurrent.futures import thread
 import threading
 from langchain.tools import tool
@@ -76,6 +78,31 @@ def hireAgents(number: int, type: str):
     return str(number) + " " + type + " agents hired."
 
 @tool
+def exportToJson(payload: dict, output_path: str = "hr_output.json"):
+    """
+    Exports the supervisor agent's result to a JSON file
+    using the standard message envelope schema.
+    Takes a payload dict of what was done, and an optional output file path.
+    Returns a confirmation string.
+    """
+    message = {
+        "id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "sender": "HR_SUPERVISOR",
+        "recipient": "CEO",
+        "task_type": "HR_REPORT",
+        "context": {},
+        "payload": payload,
+        "status": "done",
+        "error": ""
+    }
+
+    with open(output_path, "w") as f:
+        json.dump(message, f, indent=2)
+
+    return f"Output successfully written to {output_path}"
+
+@tool
 def callParserAgent(query: str):
     """
     Invokes a parser agent with a given query
@@ -96,8 +123,8 @@ def callEmployeeManagementAgent(query: str):
 def callSupervisor(query):
     db.update_status(query["id"], "in_progress")
     create_agent(model=ChatOllama(model="gpt-oss:20b").bind_tools(
-    [callEmployeeManagementAgent, callParserAgent]), tools=
-    [callEmployeeManagementAgent, callParserAgent], 
+    [callEmployeeManagementAgent, callParserAgent, exportToJson]), tools=
+    [callEmployeeManagementAgent, callParserAgent, exportToJson], 
     system_prompt=SUPERVISOR_AGENT_PROMPT).invoke(query)
     db.update_status(query["id"], "done")
 
